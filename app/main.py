@@ -11,7 +11,7 @@ class Command:
 # Define specific commands
 class HelpCommand(Command):
     def execute(self):
-        return "Available commands: help, exit, echo [message], type [command]"
+        return "Available commands: help, exit, echo [message], type [command], pwd, cd [directory]"
     
 class ExitCommand(Command):
     def __init__(self, exit_code):
@@ -26,6 +26,30 @@ class EchoCommand(Command):
 
     def execute(self):
         return self.message
+
+class PwdCommand(Command):
+    """Command to print the current working directory."""
+    def execute(self):
+        return os.getcwd()  # Return the absolute path of the current working directory
+
+class CdCommand(Command):
+    """Command to change the current working directory."""
+    def __init__(self, target_directory):
+        self.target_directory = target_directory
+
+    def execute(self):
+        try:
+            # Expand `~` to the home directory
+            target = os.path.expanduser(self.target_directory)
+            
+            # Change the current working directory
+            os.chdir(target)
+        except FileNotFoundError:
+            return f"cd: {self.target_directory}: No such file or directory"
+        except NotADirectoryError:
+            return f"cd: {self.target_directory}: Not a directory"
+        except PermissionError:
+            return f"cd: {self.target_directory}: Permission denied"
 
 class InvalidCommand(Command):
     def __init__(self, command_name):
@@ -65,11 +89,6 @@ class ExternalCommand(Command):
 
         # Command not found in PATH
         return print(f"{self.command_name}: command not found")
-    
-class pwdCommand(Command):
-    """Command to print the current working directory"""
-    def execute(self):
-        return os.getcwd()
 
 class TypeCommand(Command):
     def __init__(self, command_name):
@@ -77,7 +96,7 @@ class TypeCommand(Command):
 
     def execute(self):
         # Check if the command is a recognized builtin
-        builtins = ["help", "exit", "echo", "type", "pwd"]
+        builtins = ["help", "exit", "echo", "type", "pwd", "cd"]
         if self.command_name in builtins:
             return f"{self.command_name} is a shell builtin"
         
@@ -89,8 +108,6 @@ class TypeCommand(Command):
                 return f"{self.command_name} is {command_path}"
         else:
             return f"{self.command_name}: not found"
-        
-
 
 # Define a CommandFactory
 class CommandFactory:
@@ -98,6 +115,7 @@ class CommandFactory:
     def get_command(user_input):
         tokens = user_input.split()
         command_name = tokens[0] if tokens else ""
+
         if command_name == "help":
             return HelpCommand()
         elif command_name == "exit":
@@ -111,7 +129,12 @@ class CommandFactory:
             message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
             return EchoCommand(message) if message else InvalidCommand("echo")
         elif command_name == "pwd":
-            return pwdCommand()
+            # Return the PwdCommand to handle the pwd builtin
+            return PwdCommand()
+        elif command_name == "cd":
+            # Check if a target directory is provided
+            target_directory = tokens[1] if len(tokens) > 1 else os.path.expanduser("~")
+            return CdCommand(target_directory)
         elif command_name == "type":
             # Check if a command name is provided to type
             if len(tokens) > 1:
