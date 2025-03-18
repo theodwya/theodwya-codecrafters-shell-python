@@ -20,7 +20,7 @@ class InvalidCommand(Command):
         self.command_name = command_name
 
     def execute(self):
-        return f"Error: '{self.command_name}' comand not found."
+        return f"Error: {self.command_name}: command not found."
 
 #Define a CommandFactory
 class ComamandFactory:
