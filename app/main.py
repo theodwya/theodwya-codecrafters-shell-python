@@ -57,6 +57,26 @@ class CdCommand(Command):
         except PermissionError:
             return f"cd: {self.target_directory}: Permission denied"
 
+class TypeCommand(Command):
+    """Command to check the type of a command."""
+    def __init__(self, command_name):
+        self.command_name = command_name
+
+    def execute(self):
+        # Check if the command is a recognized builtin
+        builtins = ["help", "exit", "echo", "type", "pwd", "cd"]
+        if self.command_name in builtins:
+            return f"{self.command_name} is a shell builtin"
+
+        # Use PATH environment variable to search for executable commands
+        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
+        for path_dir in path_dirs:
+            command_path = os.path.join(path_dir, self.command_name)
+            if os.path.exists(command_path):
+                return f"{self.command_name} is {command_path}"
+        else:
+            return f"{self.command_name}: not found"
+
 
 class InvalidCommand(Command):
     def __init__(self, command_name):
@@ -98,27 +118,6 @@ class ExternalCommand(Command):
         return print(f"{self.command_name}: command not found")
 
 
-class TypeCommand(Command):
-    """Command to check the type of a command."""
-    def __init__(self, command_name):
-        self.command_name = command_name
-
-    def execute(self):
-        # Check if the command is a recognized builtin
-        builtins = ["help", "exit", "echo", "type", "pwd", "cd"]
-        if self.command_name in builtins:
-            return f"{self.command_name} is a shell builtin"
-
-        # Use PATH environment variable to search for executable commands
-        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-        for path_dir in path_dirs:
-            command_path = os.path.join(path_dir, self.command_name)
-            if os.path.exists(command_path):
-                return f"{self.command_name} is {command_path}"
-        else:
-            return f"{self.command_name}: not found"
-
-
 # Quote handling for single and double quotes with backslash support
 class QuoteProcessor:
     """Processes quoted strings in input."""
@@ -146,7 +145,6 @@ class QuoteProcessor:
                         i += 2
                     else:
                         # Backslash followed by other characters, treat as literal
-                        processed.append("\\")
                         processed.append(content[i + 1])
                         i += 2
                 else:
