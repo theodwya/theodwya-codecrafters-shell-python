@@ -32,6 +32,19 @@ class InvalidCommand(Command):
 
     def execute(self):
         return print(f"{self.command_name}: command not found")
+    
+# New TypeCommand class
+class TypeCommand(Command):
+    def __init__(self, command_name):
+        self.command_name = command_name
+
+    def execute(self):
+        # Check if the command is a recognized builtin
+        builtins = ["help", "exit", "echo", "type"]
+        if self.command_name in builtins:
+            return f"{self.command_name} is a shell builtin"
+        else:
+            return f"{self.command_name}: not found"
 
 #Define a CommandFactory
 class CommandFactory:
@@ -51,6 +64,12 @@ class CommandFactory:
             # Check if a message exist to echo, otherwise return an invalid command
             message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
             return EchoCommand(message) if message else InvalidCommand("echo")
+        elif command_name == "type":
+            # Check if a command name is provided to type
+            if len(tokens) > 1:
+                return TypeCommand(tokens[1])
+            else:
+                return InvalidCommand("type")
         else:
             return InvalidCommand(command_name)
         
