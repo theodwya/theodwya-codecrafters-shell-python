@@ -20,37 +20,13 @@ class ExitCommand(Command):
     def execute(self):
         sys.exit(self.exit_code)
 
-class ExternalCommand(Command):
-    def __init__(self, command_name, arguments):
-        self.command_name = command_name
-        self.arguments = arguments
+class EchoCommand(Command):
+    def __init__(self, message):
+        self.message = message
 
     def execute(self):
-        # Use PATH to find the executable
-        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-        for directory in path_dirs:
-            full_path = os.path.join(directory, self.command_name)
-            if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
-                try:
-                    # Execute the external program with arguments
-                    # Pass the command name (not the full path) as Arg #0
-                    result = subprocess.run(
-                        [self.command_name] + self.arguments,
-                        # executable=full_path,  # Use the resolved full path to execute the program
-                        capture_output=True,
-                        text=True
-                    )
-                    # Print the program's standard output
-                    print(result.stdout, end="")
-                    # Print the program's standard error (if any)
-                    if result.stderr:
-                        print(result.stderr, file=sys.stderr, end="")
-                    return
-                except Exception as e:
-                    return print(f"Error while executing {self.command_name}: {e}")
+        return self.message
 
-        # Command not found in PATH
-        return print(f"{self.command_name}: command not found.")
 class InvalidCommand(Command):
     def __init__(self, command_name):
         self.command_name = command_name
@@ -71,8 +47,10 @@ class ExternalCommand(Command):
             if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
                 try:
                     # Execute the external program with arguments
+                    # Pass the command name (not the full path) as Arg #0
                     result = subprocess.run(
-                        [full_path] + self.arguments,
+                        [self.command_name] + self.arguments,
+                        executable=full_path,  # Use the resolved full path to execute the program
                         capture_output=True,
                         text=True
                     )
@@ -156,7 +134,7 @@ class Shell:
             print(output)
 
     def loop(self):
-        """The Core REPL Loop"""
+        """The core REPL loop"""
         while self.running:
             try:
                 # Read
