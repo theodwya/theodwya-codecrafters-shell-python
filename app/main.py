@@ -146,7 +146,7 @@ class QuoteProcessor:
                         i += 2
                     else:
                         # Backslash followed by other characters, treat as literal
-                        #processed.append("\\")
+                        processed.append("\\")
                         processed.append(content[i + 1])
                         i += 2
                 else:
