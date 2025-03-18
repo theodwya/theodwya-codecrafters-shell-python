@@ -10,7 +10,7 @@ class Command:
 # Define specific commands
 class HelpCommand(Command):
     def execute(self):
-        return "Available commands: help, exit, exho [message]"
+        return "Available commands: help, exit, echo [message]"
     
 class ExitCommand(Command):
     def __init__(self, exit_code):
