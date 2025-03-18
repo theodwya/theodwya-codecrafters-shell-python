@@ -3,69 +3,26 @@ import os
 import subprocess
 
 
-# Define a base QuoteHandler class
-class QuoteHandler:
-    """Base class for handling quoted input."""
-    def handle(self, text):
-        raise NotImplementedError("Subclasses must implement the handle method")
-
-class SingleQuoteHandler(QuoteHandler):
-    """Handles text enclosed in single quotes."""
-    def handle(self, text):
-        if text.startswith("'") and text.endswith("'"):
-            # Strip the surrounding single quotes
-            return text[1:-1]
-        else:
-            raise ValueError("Invalid single-quoted string")
-
-class DoubleQuoteHandler(QuoteHandler):
-    """Handles text enclosed in double quotes."""
-    def handle(self, text):
-        if text.startswith('"') and text.endswith('"'):
-            # Strip the surrounding double quotes and handle escaped characters
-            content = text[1:-1]
-            return content.replace('\\"', '"').replace("\\\\", "\\")
-        else:
-            raise ValueError("Invalid double-quoted string")
-
-class BackslashInSingleQuoteHandler(QuoteHandler):
-    """Handles backslashes within single quotes."""
-    def handle(self, text):
-        if text.startswith("'") and text.endswith("'"):
-            # Backslashes are literal in single quotes
-            return text[1:-1]  # Just strip the quotes, no escaping inside single quotes
-        else:
-            raise ValueError("Invalid single-quoted string with backslashes")
-
-class BackslashInDoubleQuoteHandler(QuoteHandler):
-    """Handles backslashes within double quotes."""
-    def handle(self, text):
-        if text.startswith('"') and text.endswith('"'):
-            # Interpret backslashes for escaping in double quotes
-            content = text[1:-1]
-            content = content.encode("utf-8").decode("unicode_escape")  # Process escape sequences
-            return content
-        else:
-            raise ValueError("Invalid double-quoted string with backslashes")
-
-
 # Define a base Command class
 class Command:
     """Base Command class; all commands inherit from this."""
     def execute(self):
         raise NotImplementedError("Subclasses must implement the execute method")
-    
+
+
 # Define specific commands
 class HelpCommand(Command):
     def execute(self):
         return "Available commands: help, exit, echo [message], type [command], pwd, cd [directory]"
-    
+
+
 class ExitCommand(Command):
     def __init__(self, exit_code):
         self.exit_code = exit_code
-    
+
     def execute(self):
         sys.exit(self.exit_code)
+
 
 class EchoCommand(Command):
     def __init__(self, message):
@@ -74,10 +31,12 @@ class EchoCommand(Command):
     def execute(self):
         return self.message
 
+
 class PwdCommand(Command):
     """Command to print the current working directory."""
     def execute(self):
         return os.getcwd()  # Return the absolute path of the current working directory
+
 
 class CdCommand(Command):
     """Command to change the current working directory."""
@@ -88,7 +47,7 @@ class CdCommand(Command):
         try:
             # Expand `~` to the home directory
             target = os.path.expanduser(self.target_directory)
-            
+
             # Change the current working directory
             os.chdir(target)
         except FileNotFoundError:
@@ -98,13 +57,15 @@ class CdCommand(Command):
         except PermissionError:
             return f"cd: {self.target_directory}: Permission denied"
 
+
 class InvalidCommand(Command):
     def __init__(self, command_name):
         self.command_name = command_name
 
     def execute(self):
         return print(f"{self.command_name}: command not found")
-    
+
+
 class ExternalCommand(Command):
     def __init__(self, command_name, arguments):
         self.command_name = command_name
@@ -137,32 +98,49 @@ class ExternalCommand(Command):
         # Command not found in PATH
         return print(f"{self.command_name}: command not found")
 
-class TypeCommand(Command):
-    def __init__(self, command_name):
-        self.command_name = command_name
 
-    def execute(self):
-        # Check if the command is a recognized builtin
-        builtins = ["help", "exit", "echo", "type", "pwd", "cd"]
-        if self.command_name in builtins:
-            return f"{self.command_name} is a shell builtin"
-        
-        # Use PATH environment variable to search for executable commands
-        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-        for path_dir in path_dirs:
-            command_path = os.path.join(path_dir, self.command_name)
-            if os.path.exists(command_path):
-                return f"{self.command_name} is {command_path}"
-        else:
-            return f"{self.command_name}: not found"
+# Quote handling for single and double quotes
+class QuoteProcessor:
+    """Processes quoted strings in input."""
 
-# Define a CommandFactory
+    @staticmethod
+    def handle_single_quotes(text):
+        """Handles text enclosed in single quotes."""
+        if text.startswith("'") and text.endswith("'"):
+            # Strip the surrounding single quotes
+            return text[1:-1]  # Return the literal content inside the single quotes
+        return text
+
+    @staticmethod
+    def preprocess(tokens):
+        """
+        Preprocess tokens to handle quoted arguments.
+        """
+        processed_tokens = []
+        for token in tokens:
+            if token.startswith("'") and token.endswith("'"):
+                # Handle single-quoted strings
+                processed_tokens.append(QuoteProcessor.handle_single_quotes(token))
+            else:
+                # Leave other tokens as is (for now)
+                processed_tokens.append(token)
+        return processed_tokens
+
+
+# Command Factory to process user input and create commands
 class CommandFactory:
     @staticmethod
     def get_command(user_input):
+        # Split input into tokens
         tokens = user_input.split()
-        command_name = tokens[0] if tokens else ""
 
+        # Preprocess tokens to handle quotes
+        tokens = QuoteProcessor.preprocess(tokens)
+
+        if not tokens:
+            return InvalidCommand("")
+
+        command_name = tokens[0]
         if command_name == "help":
             return HelpCommand()
         elif command_name == "exit":
@@ -172,26 +150,13 @@ class CommandFactory:
             except (ValueError, IndexError):
                 return InvalidCommand("exit")
         elif command_name == "echo":
-            # Check if a message exists to echo, otherwise return an invalid command
             message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
-            return EchoCommand(message) if message else InvalidCommand("echo")
-        elif command_name == "pwd":
-            # Return the PwdCommand to handle the pwd builtin
-            return PwdCommand()
-        elif command_name == "cd":
-            # Check if a target directory is provided
-            target_directory = tokens[1] if len(tokens) > 1 else os.path.expanduser("~")
-            return CdCommand(target_directory)
-        elif command_name == "type":
-            # Check if a command name is provided to type
-            if len(tokens) > 1:
-                return TypeCommand(tokens[1])
-            else:
-                return InvalidCommand("type")
+            return EchoCommand(message)
         else:
-            # Treat it as an external command with arguments
-            return ExternalCommand(command_name, tokens[1:])
-        
+            return InvalidCommand(command_name)
+
+
+# The Shell class
 class Shell:
     """The REPL structure"""
     def __init__(self):
@@ -202,11 +167,11 @@ class Shell:
         sys.stdout.write("$ ")
         sys.stdout.flush()
         return input().strip()
-    
+
     def eval(self, user_input):
         """Evaluates the user input by delegating to the CommandFactory."""
         return CommandFactory.get_command(user_input)
-    
+
     def print(self, output):
         """Prints the command's output"""
         if output:
@@ -231,6 +196,7 @@ class Shell:
                 print("\nCtrl+C detected. Type 'exit' to quit.")
             except EOFError:
                 print("\nEOF detected. Type 'exit' to quit.")
+
 
 if __name__ == "__main__":
     shell = Shell()
