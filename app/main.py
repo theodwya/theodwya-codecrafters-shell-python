@@ -163,7 +163,7 @@ class QuoteProcessor:
         while i < len(token):
             if token[i] == "\\" and i + 1 < len(token):
                 # Keep the literal value of the next character
-                processed.append(token[i])
+                processed.append(token[i+1])
                 i += 2
             else:
                 processed.append(token[i])
