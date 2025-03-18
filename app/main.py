@@ -79,7 +79,6 @@ class ExternalCommand(Command):
             if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
                 try:
                     # Execute the external program with arguments
-                    # Pass the command name (not the full path) as Arg #0
                     result = subprocess.run(
                         [self.command_name] + self.arguments,
                         executable=full_path,  # Use the resolved full path to execute the program
@@ -99,6 +98,27 @@ class ExternalCommand(Command):
         return print(f"{self.command_name}: command not found")
 
 
+class TypeCommand(Command):
+    """Command to check the type of a command."""
+    def __init__(self, command_name):
+        self.command_name = command_name
+
+    def execute(self):
+        # Check if the command is a recognized builtin
+        builtins = ["help", "exit", "echo", "type", "pwd", "cd"]
+        if self.command_name in builtins:
+            return f"{self.command_name} is a shell builtin"
+
+        # Use PATH environment variable to search for executable commands
+        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
+        for path_dir in path_dirs:
+            command_path = os.path.join(path_dir, self.command_name)
+            if os.path.exists(command_path):
+                return f"{self.command_name} is {command_path}"
+        else:
+            return f"{self.command_name}: not found"
+
+
 # Quote handling for single and double quotes
 class QuoteProcessor:
     """Processes quoted strings in input."""
@@ -108,34 +128,55 @@ class QuoteProcessor:
         """Handles text enclosed in single quotes."""
         if text.startswith("'") and text.endswith("'"):
             # Strip the surrounding single quotes
-            return text[1:-1]  # Return the literal content inside the single quotes
+            return text[1:-1]
         return text
 
     @staticmethod
-    def preprocess(tokens):
-        """
-        Preprocess tokens to handle quoted arguments.
-        """
-        processed_tokens = []
-        for token in tokens:
-            if token.startswith("'") and token.endswith("'"):
-                # Handle single-quoted strings
-                processed_tokens.append(QuoteProcessor.handle_single_quotes(token))
+    def split_input(user_input):
+        """Splits input into tokens and handles single quotes."""
+        tokens = []
+        current_token = []
+        in_single_quote = False
+
+        for char in user_input:
+            if char == "'":
+                if in_single_quote:
+                    # Closing single quote
+                    tokens.append("".join(current_token))
+                    current_token = []
+                    in_single_quote = False
+                else:
+                    # Opening single quote
+                    in_single_quote = True
+            elif char == " " and not in_single_quote:
+                # Space outside of quotes: finalize the current token
+                if current_token:
+                    tokens.append("".join(current_token))
+                    current_token = []
             else:
-                # Leave other tokens as is (for now)
-                processed_tokens.append(token)
-        return processed_tokens
+                # Regular character or inside single quotes
+                current_token.append(char)
+
+        # Append the last token if there is one
+        if current_token:
+            tokens.append("".join(current_token))
+
+        # Handle unclosed single quotes
+        if in_single_quote:
+            raise ValueError("Unclosed single quote in input")
+
+        return tokens
 
 
 # Command Factory to process user input and create commands
 class CommandFactory:
     @staticmethod
     def get_command(user_input):
-        # Split input into tokens
-        tokens = user_input.split()
-
-        # Preprocess tokens to handle quotes
-        tokens = QuoteProcessor.preprocess(tokens)
+        try:
+            # Split and preprocess input
+            tokens = QuoteProcessor.split_input(user_input)
+        except ValueError as e:
+            return InvalidCommand(str(e))
 
         if not tokens:
             return InvalidCommand("")
@@ -150,10 +191,24 @@ class CommandFactory:
             except (ValueError, IndexError):
                 return InvalidCommand("exit")
         elif command_name == "echo":
+            # Join the preprocessed tokens for the echo message
             message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
             return EchoCommand(message)
+        elif command_name == "pwd":
+            return PwdCommand()
+        elif command_name == "cd":
+            # Check if a target directory is provided
+            target_directory = tokens[1] if len(tokens) > 1 else os.path.expanduser("~")
+            return CdCommand(target_directory)
+        elif command_name == "type":
+            # Check if a command name is provided to type
+            if len(tokens) > 1:
+                return TypeCommand(tokens[1])
+            else:
+                return InvalidCommand("type")
         else:
-            return InvalidCommand(command_name)
+            # Treat it as an external command with arguments
+            return ExternalCommand(command_name, tokens[1:])
 
 
 # The Shell class
