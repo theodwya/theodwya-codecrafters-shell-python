@@ -1,4 +1,5 @@
 import sys
+import os
 
 
 # Define a base Command class
@@ -10,7 +11,7 @@ class Command:
 # Define specific commands
 class HelpCommand(Command):
     def execute(self):
-        return "Available commands: help, exit, echo [message]"
+        return "Available commands: help, exit, echo [message], type [command]"
     
 class ExitCommand(Command):
     def __init__(self, exit_code):
@@ -43,6 +44,13 @@ class TypeCommand(Command):
         builtins = ["help", "exit", "echo", "type"]
         if self.command_name in builtins:
             return f"{self.command_name} is a shell builtin"
+        
+        # Use PATH environment variable to search for executable commands
+        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
+        for path_dir in path_dirs:
+            command_path = os.path.join(path_dir, self.command_name)
+            if os.path.exists(command_path):
+                return f"{self.command_name} is {command_path}"
         else:
             return f"{self.command_name}: not found"
 
