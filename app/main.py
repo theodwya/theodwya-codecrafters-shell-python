@@ -132,7 +132,7 @@ class Shell:
             print(output)
 
     def loop(self):
-        """The core REPL loop"""
+        """The Core REPL Loop"""
         while self.running:
             try:
                 # Read
