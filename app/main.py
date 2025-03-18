@@ -65,6 +65,11 @@ class ExternalCommand(Command):
 
         # Command not found in PATH
         return print(f"{self.command_name}: command not found")
+    
+class pwdCommand(Command):
+    """Command to print the current working directory"""
+    def execute(self):
+        return os.getcwd()
 
 class TypeCommand(Command):
     def __init__(self, command_name):
@@ -72,7 +77,7 @@ class TypeCommand(Command):
 
     def execute(self):
         # Check if the command is a recognized builtin
-        builtins = ["help", "exit", "echo", "type"]
+        builtins = ["help", "exit", "echo", "type", "pwd"]
         if self.command_name in builtins:
             return f"{self.command_name} is a shell builtin"
         
@@ -84,6 +89,8 @@ class TypeCommand(Command):
                 return f"{self.command_name} is {command_path}"
         else:
             return f"{self.command_name}: not found"
+        
+
 
 # Define a CommandFactory
 class CommandFactory:
@@ -103,6 +110,8 @@ class CommandFactory:
             # Check if a message exists to echo, otherwise return an invalid command
             message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
             return EchoCommand(message) if message else InvalidCommand("echo")
+        elif command_name == "pwd":
+            return pwdCommand()
         elif command_name == "type":
             # Check if a command name is provided to type
             if len(tokens) > 1:
