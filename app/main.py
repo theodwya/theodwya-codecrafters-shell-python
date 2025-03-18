@@ -119,7 +119,7 @@ class TypeCommand(Command):
             return f"{self.command_name}: not found"
 
 
-# Quote handling for single and double quotes
+# Quote handling for single and double quotes with backslash support
 class QuoteProcessor:
     """Processes quoted strings in input."""
 
@@ -135,7 +135,7 @@ class QuoteProcessor:
         """Handles text enclosed in double quotes (escape sequences allowed)."""
         if text.startswith('"') and text.endswith('"'):
             content = text[1:-1]  # Strip surrounding double quotes
-            # Process escape sequences for \", \\, \$, and \n
+            # Process escape sequences specific to double quotes
             processed = []
             i = 0
             while i < len(content):
@@ -145,9 +145,10 @@ class QuoteProcessor:
                         processed.append(content[i + 1])
                         i += 2
                     else:
-                        # Backslash followed by something else (invalid escape), keep as is
-                        processed.append(content[i])
-                        i += 1
+                        # Backslash followed by other characters, treat as literal
+                        processed.append("\\")
+                        processed.append(content[i + 1])
+                        i += 2
                 else:
                     processed.append(content[i])
                     i += 1
@@ -155,8 +156,23 @@ class QuoteProcessor:
         return text
 
     @staticmethod
+    def handle_unquoted_backslashes(token):
+        """Handles backslashes in unquoted text."""
+        processed = []
+        i = 0
+        while i < len(token):
+            if token[i] == "\\" and i + 1 < len(token):
+                # Keep the literal value of the next character
+                processed.append(token[i + 1])
+                i += 2
+            else:
+                processed.append(token[i])
+                i += 1
+        return "".join(processed)
+
+    @staticmethod
     def split_input(user_input):
-        """Splits input into tokens and handles both single and double quotes."""
+        """Splits input into tokens and handles quotes and backslashes."""
         tokens = []
         current_token = []
         in_single_quote = False
@@ -199,7 +215,7 @@ class QuoteProcessor:
         if in_double_quote:
             raise ValueError("Unclosed double quote in input")
 
-        # Handle quoted tokens (strip quotes and process escape sequences)
+        # Handle quotes and backslashes in tokens
         processed_tokens = []
         for token in tokens:
             if token.startswith("'") and token.endswith("'"):
@@ -207,7 +223,7 @@ class QuoteProcessor:
             elif token.startswith('"') and token.endswith('"'):
                 processed_tokens.append(QuoteProcessor.handle_double_quotes(token))
             else:
-                processed_tokens.append(token)
+                processed_tokens.append(QuoteProcessor.handle_unquoted_backslashes(token))
 
         return processed_tokens
 
