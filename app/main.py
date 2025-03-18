@@ -4,7 +4,8 @@ import sys
 # Define a base Command class
 class Command:
     def execute(self):
-        raise NotImplementedError("Subclasses must implement the execute method")
+        return
+    # raise NotImplementedError("Subclasses must implement the execute method")
     
 # Define specific commands
 class HelpCommand(Command):
@@ -20,7 +21,7 @@ class InvalidCommand(Command):
         self.command_name = command_name
 
     def execute(self):
-        return f"Error: {self.command_name}: command not found."
+        return print(f"{self.command_name}: command not found")
 
 #Define a CommandFactory
 class ComamandFactory:
@@ -37,7 +38,6 @@ def main():
     while True:
         #Uncomment this block to pass the first stage
         sys.stdout.write("$ ")
-        sys.stdout.flush()
 
         # Get user input
         user_input = input().strip()
@@ -48,7 +48,7 @@ def main():
         # Execute the command
         output = command.execute()
 
-        # if the command produces output, display
+        # If the command produces output, display
         if output:
             print(output)
 
