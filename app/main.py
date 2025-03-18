@@ -124,14 +124,6 @@ class QuoteProcessor:
     """Processes quoted strings in input."""
 
     @staticmethod
-    def handle_single_quotes(text):
-        """Handles text enclosed in single quotes."""
-        if text.startswith("'") and text.endswith("'"):
-            # Strip the surrounding single quotes
-            return text[1:-1]
-        return text
-
-    @staticmethod
     def split_input(user_input):
         """Splits input into tokens and handles single quotes."""
         tokens = []
@@ -142,8 +134,6 @@ class QuoteProcessor:
             if char == "'":
                 if in_single_quote:
                     # Closing single quote
-                    tokens.append("".join(current_token))
-                    current_token = []
                     in_single_quote = False
                 else:
                     # Opening single quote
@@ -154,7 +144,7 @@ class QuoteProcessor:
                     tokens.append("".join(current_token))
                     current_token = []
             else:
-                # Regular character or inside single quotes
+                # Regular character or inside quoted strings
                 current_token.append(char)
 
         # Append the last token if there is one
@@ -165,7 +155,16 @@ class QuoteProcessor:
         if in_single_quote:
             raise ValueError("Unclosed single quote in input")
 
-        return tokens
+        # Concatenate adjacent tokens without spaces when quotes are involved
+        concatenated_tokens = []
+        for token in tokens:
+            if concatenated_tokens and token.startswith("'") and token.endswith("'"):
+                # Concatenate literal contents of quoted tokens
+                concatenated_tokens[-1] += token[1:-1]
+            else:
+                concatenated_tokens.append(token)
+
+        return concatenated_tokens
 
 
 # Command Factory to process user input and create commands
