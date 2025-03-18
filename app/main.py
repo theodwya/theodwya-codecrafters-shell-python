@@ -2,23 +2,61 @@ import sys
 import os
 import subprocess
 
+# Define a base QuoteHandler class
+class QuoteHandler:
+    """Base class for handling quoted input."""
+    def handle(self, text):
+        raise NotImplementedError("Subclasses must implement the handle method")
+
+class SingleQuoteHandler(QuoteHandler):
+    """Handles text enclosed in single quotes."""
+    def handle(self, text):
+        if text.startswith("'") and text.endswith("'"):
+            # Strip the surrounding single quotes
+            return text[1:-1]
+        else:
+            raise ValueError("Invalid single-quoted string")
+
+class DoubleQuoteHandler(QuoteHandler):
+    """Handles text enclosed in double quotes."""
+    def handle(self, text):
+        if text.startswith('"') and text.endswith('"'):
+            # Strip the surrounding double quotes and handle escaped characters
+            content = text[1:-1]
+            return content.replace('\\"', '"').replace("\\\\", "\\")
+        else:
+            raise ValueError("Invalid double-quoted string")
+
+class BackslashInSingleQuoteHandler(QuoteHandler):
+    """Handles backslashes within single quotes."""
+    def handle(self, text):
+        if text.startswith("'") and text.endswith("'"):
+            # Backslashes are literal in single quotes
+            return text[1:-1]  # Just strip the quotes, no escaping inside single quotes
+        else:
+            raise ValueError("Invalid single-quoted string with backslashes")
+
+class BackslashInDoubleQuoteHandler(QuoteHandler):
+    """Handles backslashes within double quotes."""
+    def handle(self, text):
+        if text.startswith('"') and text.endswith('"'):
+            # Interpret backslashes for escaping in double quotes
+            content = text[1:-1]
+            content = content.encode("utf-8").decode("unicode_escape")  # Process escape sequences
+            return content
+        else:
+            raise ValueError("Invalid double-quoted string with backslashes")
+
 # Define a base Command class
 class Command:
     """Base Command class; all commands inherit from this."""
     def execute(self):
         raise NotImplementedError("Subclasses must implement the execute method")
-    
+
 # Define specific commands
 class HelpCommand(Command):
     def execute(self):
         return "Available commands: help, exit, echo [message], type [command], pwd, cd [directory]"
-    
-class ExitCommand(Command):
-    def __init__(self, exit_code):
-        self.exit_code = exit_code
-    
-    def execute(self):
-        sys.exit(self.exit_code)
 
 class EchoCommand(Command):
     def __init__(self, message):
@@ -27,29 +65,38 @@ class EchoCommand(Command):
     def execute(self):
         return self.message
 
-class PwdCommand(Command):
-    """Command to print the current working directory."""
-    def execute(self):
-        return os.getcwd()  # Return the absolute path of the current working directory
+# Define a CommandFactory
+class CommandFactory:
+    @staticmethod
+    def preprocess_input(user_input):
+        """Preprocesses the user input, handling quotes and escape characters."""
+        # Check for single quotes
+        if user_input.startswith("'") and user_input.endswith("'"):
+            return SingleQuoteHandler().handle(user_input)
+        # Check for double quotes
+        elif user_input.startswith('"') and user_input.endswith('"'):
+            return DoubleQuoteHandler().handle(user_input)
+        # Check for backslashes inside single quotes
+        elif user_input.startswith("'\\") and user_input.endswith("'"):
+            return BackslashInSingleQuoteHandler().handle(user_input)
+        # Check for backslashes inside double quotes
+        elif user_input.startswith('"\\') and user_input.endswith('"'):
+            return BackslashInDoubleQuoteHandler().handle(user_input)
+        else:
+            return user_input  # Default case: Return unprocessed input
 
-class CdCommand(Command):
-    """Command to change the current working directory."""
-    def __init__(self, target_directory):
-        self.target_directory = target_directory
-
-    def execute(self):
-        try:
-            # Expand `~` to the home directory
-            target = os.path.expanduser(self.target_directory)
-            
-            # Change the current working directory
-            os.chdir(target)
-        except FileNotFoundError:
-            return f"cd: {self.target_directory}: No such file or directory"
-        except NotADirectoryError:
-            return f"cd: {self.target_directory}: Not a directory"
-        except PermissionError:
-            return f"cd: {self.target_directory}: Permission denied"
+    @staticmethod
+    def get_command(user_input):
+        user_input = CommandFactory.preprocess_input(user_input)
+        tokens = user_input.split()
+        command_name = tokens[0] if tokens else ""
+        if command_name == "help":
+            return HelpCommand()
+        elif command_name == "echo":
+            message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
+            return EchoCommand(message)
+        else:
+            return InvalidCommand(command_name)
 
 class InvalidCommand(Command):
     def __init__(self, command_name):
@@ -57,94 +104,7 @@ class InvalidCommand(Command):
 
     def execute(self):
         return print(f"{self.command_name}: command not found")
-    
-class ExternalCommand(Command):
-    def __init__(self, command_name, arguments):
-        self.command_name = command_name
-        self.arguments = arguments
 
-    def execute(self):
-        # Use PATH to find the executable
-        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-        for directory in path_dirs:
-            full_path = os.path.join(directory, self.command_name)
-            if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
-                try:
-                    # Execute the external program with arguments
-                    # Pass the command name (not the full path) as Arg #0
-                    result = subprocess.run(
-                        [self.command_name] + self.arguments,
-                        executable=full_path,  # Use the resolved full path to execute the program
-                        capture_output=True,
-                        text=True
-                    )
-                    # Print the program's standard output
-                    print(result.stdout, end="")
-                    # Print the program's standard error (if any)
-                    if result.stderr:
-                        print(result.stderr, file=sys.stderr, end="")
-                    return
-                except Exception as e:
-                    return print(f"Error while executing {self.command_name}: {e}")
-
-        # Command not found in PATH
-        return print(f"{self.command_name}: command not found")
-
-class TypeCommand(Command):
-    def __init__(self, command_name):
-        self.command_name = command_name
-
-    def execute(self):
-        # Check if the command is a recognized builtin
-        builtins = ["help", "exit", "echo", "type", "pwd", "cd"]
-        if self.command_name in builtins:
-            return f"{self.command_name} is a shell builtin"
-        
-        # Use PATH environment variable to search for executable commands
-        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
-        for path_dir in path_dirs:
-            command_path = os.path.join(path_dir, self.command_name)
-            if os.path.exists(command_path):
-                return f"{self.command_name} is {command_path}"
-        else:
-            return f"{self.command_name}: not found"
-
-# Define a CommandFactory
-class CommandFactory:
-    @staticmethod
-    def get_command(user_input):
-        tokens = user_input.split()
-        command_name = tokens[0] if tokens else ""
-
-        if command_name == "help":
-            return HelpCommand()
-        elif command_name == "exit":
-            try:
-                exit_code = int(tokens[1]) if len(tokens) > 1 else 0
-                return ExitCommand(exit_code)
-            except (ValueError, IndexError):
-                return InvalidCommand("exit")
-        elif command_name == "echo":
-            # Check if a message exists to echo, otherwise return an invalid command
-            message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
-            return EchoCommand(message) if message else InvalidCommand("echo")
-        elif command_name == "pwd":
-            # Return the PwdCommand to handle the pwd builtin
-            return PwdCommand()
-        elif command_name == "cd":
-            # Check if a target directory is provided
-            target_directory = tokens[1] if len(tokens) > 1 else os.path.expanduser("~")
-            return CdCommand(target_directory)
-        elif command_name == "type":
-            # Check if a command name is provided to type
-            if len(tokens) > 1:
-                return TypeCommand(tokens[1])
-            else:
-                return InvalidCommand("type")
-        else:
-            # Treat it as an external command with arguments
-            return ExternalCommand(command_name, tokens[1:])
-        
 class Shell:
     """The REPL structure"""
     def __init__(self):
