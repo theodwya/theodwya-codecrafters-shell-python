@@ -40,18 +40,30 @@ class ExternalCommand(Command):
         self.arguments = arguments
 
     def execute(self):
-        try:
-            # Run the command and capture the output
-            result = subprocess.run([self.command_name] + self.arguments, capture_output=True, text=True)
-            if result.stdout:
-                print(result.stdout, end="")  # Print without additional newline
-            if result.stderr:
-                print(result.stderr, end="")  # Print error without additional newline
-            return None  # No additional output required
-        except FileNotFoundError:
-            return f"{self.command_name}: command not found."
-        except PermissionError:
-            return f"{self.command_name}: permission denied."
+        # Use PATH to find the executable
+        path_dirs = os.environ.get("PATH", "").split(":")
+        for directory in path_dirs:
+            full_path = os.path.join(directory, self.command_name)
+            if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
+                try:
+                    # Execute the external program with arguments
+                    result = subprocess.run(
+                        [full_path] + self.arguments,
+                        capture_output=True,
+                        text=True
+                    )
+                    # Print the program's standard output
+                    print(result.stdout, end="")
+                    # Print the program's standard error (if any)
+                    if result.stderr:
+                        print(result.stderr, file=sys.stderr, end="")
+                    return
+                except Exception as e:
+                    return print(f"Error while executing {self.command_name}: {e}")
+
+        # Command not found in PATH
+        return print(f"{self.command_name}: command not found")
+
 
         
 
