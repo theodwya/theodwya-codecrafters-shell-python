@@ -41,7 +41,7 @@ class ExternalCommand(Command):
 
     def execute(self):
         # Use PATH to find the executable
-        path_dirs = os.environ.get("PATH", "").split(":")
+        path_dirs = os.environ.get("PATH", "").split(os.pathsep)
         for directory in path_dirs:
             full_path = os.path.join(directory, self.command_name)
             if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
@@ -64,10 +64,6 @@ class ExternalCommand(Command):
         # Command not found in PATH
         return print(f"{self.command_name}: command not found")
 
-
-        
-
-# New TypeCommand class
 class TypeCommand(Command):
     def __init__(self, command_name):
         self.command_name = command_name
@@ -87,7 +83,7 @@ class TypeCommand(Command):
         else:
             return f"{self.command_name}: not found"
 
-#Define a CommandFactory
+# Define a CommandFactory
 class CommandFactory:
     @staticmethod
     def get_command(user_input):
@@ -102,7 +98,7 @@ class CommandFactory:
             except (ValueError, IndexError):
                 return InvalidCommand("exit")
         elif command_name == "echo":
-            # Check if a message exist to echo, otherwise return an invalid command
+            # Check if a message exists to echo, otherwise return an invalid command
             message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
             return EchoCommand(message) if message else InvalidCommand("echo")
         elif command_name == "type":
@@ -112,6 +108,7 @@ class CommandFactory:
             else:
                 return InvalidCommand("type")
         else:
+            # Treat it as an external command with arguments
             return ExternalCommand(command_name, tokens[1:])
         
 class Shell:
