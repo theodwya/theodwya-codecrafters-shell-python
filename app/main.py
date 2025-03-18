@@ -9,7 +9,7 @@ class Command:
 # Define specific commands
 class HelpCommand(Command):
     def execute(self):
-        return "Available comands: help, exit"
+        return "Available commands: help, exit"
     
 class ExitCommand(Command):
     def execute(self):
@@ -20,7 +20,7 @@ class InvalidCommand(Command):
         self.command_name = command_name
 
     def execute(self):
-        return f"Error: '{self.command_name}' is not a recognized comand. Type 'help' for available commands."
+        return f"Error: '{self.command_name}' comand not found."
 
 #Define a CommandFactory
 class ComamandFactory:
