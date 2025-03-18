@@ -50,7 +50,7 @@ class ExternalCommand(Command):
                     return print(f"Error while executing {self.command_name}: {e}")
 
         # Command not found in PATH
-        return print(f"{self.command_name}: command not found")
+        return print(f"{self.command_name}: command not found.")
 class InvalidCommand(Command):
     def __init__(self, command_name):
         self.command_name = command_name
