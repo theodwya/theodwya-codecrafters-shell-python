@@ -1,6 +1,6 @@
 import sys
 import os
-
+import subprocess
 
 # Define a base Command class
 class Command:
@@ -34,6 +34,27 @@ class InvalidCommand(Command):
     def execute(self):
         return print(f"{self.command_name}: command not found")
     
+class ExternalCommand(Command):
+    def __init__(self, command_name, arguments):
+        self.command_name = command_name
+        self.arguments = arguments
+
+    def execute(self):
+        try:
+            # Run the command and capture the output
+            result = subprocess.run([self.command_name] + self.arguments, capture_output=True, text=True)
+            if result.stdout:
+                print(result.stdout, end="")  # Print without additional newline
+            if result.stderr:
+                print(result.stderr, end="")  # Print error without additional newline
+            return None  # No additional output required
+        except FileNotFoundError:
+            return f"{self.command_name}: command not found"
+        except PermissionError:
+            return f"{self.command_name}: permission denied"
+
+        
+
 # New TypeCommand class
 class TypeCommand(Command):
     def __init__(self, command_name):
