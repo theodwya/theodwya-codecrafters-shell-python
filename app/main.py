@@ -57,6 +57,7 @@ class CdCommand(Command):
         except PermissionError:
             return f"cd: {self.target_directory}: Permission denied"
 
+
 class TypeCommand(Command):
     """Command to check the type of a command."""
     def __init__(self, command_name):
@@ -160,8 +161,8 @@ class QuoteProcessor:
         i = 0
         while i < len(token):
             if token[i] == "\\" and i + 1 < len(token):
-                # Keep the literal value of the next character
-                processed.append(token[i+1])
+                # Remove the backslash and escape the following character
+                processed.append(token[i + 1])
                 i += 2
             else:
                 processed.append(token[i])
