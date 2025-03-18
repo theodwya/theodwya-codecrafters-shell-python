@@ -49,9 +49,9 @@ class ExternalCommand(Command):
                 print(result.stderr, end="")  # Print error without additional newline
             return None  # No additional output required
         except FileNotFoundError:
-            return f"{self.command_name}: command not found"
+            return f"{self.command_name}: command not found."
         except PermissionError:
-            return f"{self.command_name}: permission denied"
+            return f"{self.command_name}: permission denied."
 
         
 
