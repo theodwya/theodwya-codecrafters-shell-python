@@ -36,7 +36,7 @@ class ExternalCommand(Command):
                     # Pass the command name (not the full path) as Arg #0
                     result = subprocess.run(
                         [self.command_name] + self.arguments,
-                        executable=full_path,  # Use the resolved full path to execute the program
+                        # executable=full_path,  # Use the resolved full path to execute the program
                         capture_output=True,
                         text=True
                     )
