@@ -124,47 +124,92 @@ class QuoteProcessor:
     """Processes quoted strings in input."""
 
     @staticmethod
+    def handle_single_quotes(text):
+        """Handles text enclosed in single quotes (literal values)."""
+        if text.startswith("'") and text.endswith("'"):
+            return text[1:-1]  # Strip quotes
+        return text
+
+    @staticmethod
+    def handle_double_quotes(text):
+        """Handles text enclosed in double quotes (escape sequences allowed)."""
+        if text.startswith('"') and text.endswith('"'):
+            content = text[1:-1]  # Strip surrounding double quotes
+            # Process escape sequences for \", \\, \$, and \n
+            processed = []
+            i = 0
+            while i < len(content):
+                if content[i] == "\\" and i + 1 < len(content):
+                    # Handle valid escape sequences
+                    if content[i + 1] in ['"', "\\", "$", "\n"]:
+                        processed.append(content[i + 1])
+                        i += 2
+                    else:
+                        # Backslash followed by something else (invalid escape), keep as is
+                        processed.append(content[i])
+                        i += 1
+                else:
+                    processed.append(content[i])
+                    i += 1
+            return "".join(processed)
+        return text
+
+    @staticmethod
     def split_input(user_input):
-        """Splits input into tokens and handles single quotes."""
+        """Splits input into tokens and handles both single and double quotes."""
         tokens = []
         current_token = []
         in_single_quote = False
+        in_double_quote = False
 
-        for char in user_input:
-            if char == "'":
+        i = 0
+        while i < len(user_input):
+            char = user_input[i]
+
+            if char == "'" and not in_double_quote:
+                # Single quote toggle
                 if in_single_quote:
-                    # Closing single quote
-                    in_single_quote = False
+                    in_single_quote = False  # Closing single quote
                 else:
-                    # Opening single quote
-                    in_single_quote = True
-            elif char == " " and not in_single_quote:
+                    in_single_quote = True  # Opening single quote
+            elif char == '"' and not in_single_quote:
+                # Double quote toggle
+                if in_double_quote:
+                    in_double_quote = False  # Closing double quote
+                else:
+                    in_double_quote = True  # Opening double quote
+            elif char == " " and not in_single_quote and not in_double_quote:
                 # Space outside of quotes: finalize the current token
                 if current_token:
                     tokens.append("".join(current_token))
                     current_token = []
             else:
-                # Regular character or inside quoted strings
+                # Regular character or inside quotes
                 current_token.append(char)
+
+            i += 1
 
         # Append the last token if there is one
         if current_token:
             tokens.append("".join(current_token))
 
-        # Handle unclosed single quotes
+        # Handle unclosed quotes
         if in_single_quote:
             raise ValueError("Unclosed single quote in input")
+        if in_double_quote:
+            raise ValueError("Unclosed double quote in input")
 
-        # Concatenate adjacent tokens without spaces when quotes are involved
-        concatenated_tokens = []
+        # Handle quoted tokens (strip quotes and process escape sequences)
+        processed_tokens = []
         for token in tokens:
-            if concatenated_tokens and token.startswith("'") and token.endswith("'"):
-                # Concatenate literal contents of quoted tokens
-                concatenated_tokens[-1] += token[1:-1]
+            if token.startswith("'") and token.endswith("'"):
+                processed_tokens.append(QuoteProcessor.handle_single_quotes(token))
+            elif token.startswith('"') and token.endswith('"'):
+                processed_tokens.append(QuoteProcessor.handle_double_quotes(token))
             else:
-                concatenated_tokens.append(token)
+                processed_tokens.append(token)
 
-        return concatenated_tokens
+        return processed_tokens
 
 
 # Command Factory to process user input and create commands
