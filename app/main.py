@@ -13,8 +13,11 @@ class HelpCommand(Command):
         return "Available commands: help, exit, exho [message]"
     
 class ExitCommand(Command):
+    def __init__(self, exit_code):
+        self.exit_code = exit_code
+    
     def execute(self):
-        sys.exit("Exiting the shell...")
+        sys.exit(self.exit_code)
 
 class EchoCommand(Command):
     def __init__(self, message):
@@ -33,11 +36,17 @@ class InvalidCommand(Command):
 #Define a CommandFactory
 class CommandFactory:
     @staticmethod
-    def get_command(command_name):
+    def get_command(user_input):
+        tokens = user_input.split()
+        command_name = tokens[0] if tokens else ""
         if command_name == "help":
             return HelpCommand()
         elif command_name == "exit":
-            return ExitCommand()
+            try:
+                exit_code = int(tokens[1]) if len(tokens) > 1 else 0
+                return ExitCommand(exit_code)
+            except (ValueError, IndexError):
+                return InvalidCommand("exit")
         elif command_name == "echo":
             # Check if a message exist to echo, otherwise return an invalid command
             message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
