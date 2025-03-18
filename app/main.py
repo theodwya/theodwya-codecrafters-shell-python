@@ -112,7 +112,7 @@ class CommandFactory:
             else:
                 return InvalidCommand("type")
         else:
-            return InvalidCommand(command_name)
+            return ExternalCommand(command_name, tokens[1:])
         
 class Shell:
     """The REPL structure"""
