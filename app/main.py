@@ -47,7 +47,6 @@ class CdCommand(Command):
         try:
             # Expand `~` to the home directory
             target = os.path.expanduser(self.target_directory)
-
             # Change the current working directory
             os.chdir(target)
         except FileNotFoundError:
@@ -140,11 +139,13 @@ class QuoteProcessor:
             i = 0
             while i < len(content):
                 if content[i] == "\\" and i + 1 < len(content):
+                    # Only escape if the next char is one of the following;
+                    # otherwise, the backslash remains literal.
                     if content[i + 1] in ['"', "\\", "$", "\n"]:
                         processed.append(content[i + 1])
                         i += 2
                     else:
-                        processed.append(content[i + 1])
+                        processed.append("\\" + content[i + 1])
                         i += 2
                 else:
                     processed.append(content[i])
@@ -163,10 +164,9 @@ class QuoteProcessor:
         while i < len(user_input):
             char = user_input[i]
 
-            # Handle backslash escaping outside single quotes.
-            if char == "\\" and not in_single_quote:
+            # If not inside any quotes, then backslash should escape the next character.
+            if char == "\\" and not in_single_quote and not in_double_quote:
                 if i + 1 < len(user_input):
-                    # Escape next character no matter if it's space or not.
                     current_token.append(user_input[i + 1])
                     i += 2
                     continue
@@ -187,6 +187,7 @@ class QuoteProcessor:
                 i += 1
                 continue
 
+            # For spaces outside of any quotes, finalize the current token.
             if char == " " and not in_single_quote and not in_double_quote:
                 if current_token:
                     tokens.append("".join(current_token))
@@ -194,19 +195,20 @@ class QuoteProcessor:
                 i += 1
                 continue
 
+            # All other characters (or chars inside quotes) are appended as is.
             current_token.append(char)
             i += 1
 
         if current_token:
             tokens.append("".join(current_token))
 
-        # Error on unclosed quotes
+        # Error on unclosed quotes.
         if in_single_quote:
             raise ValueError("Unclosed single quote in input")
         if in_double_quote:
             raise ValueError("Unclosed double quote in input")
 
-        # Process tokens to handle quotes correctly
+        # Process tokens to handle quotes correctly.
         processed_tokens = []
         for token in tokens:
             if token.startswith("'") and token.endswith("'"):
@@ -214,16 +216,16 @@ class QuoteProcessor:
             elif token.startswith('"') and token.endswith('"'):
                 processed_tokens.append(QuoteProcessor.handle_double_quotes(token))
             else:
-                # Already processed during splitting for unquoted backslashes.
                 processed_tokens.append(token)
         return processed_tokens
+
 
 # Command Factory to process user input and create commands
 class CommandFactory:
     @staticmethod
     def get_command(user_input):
         try:
-            # Split and preprocess input
+            # Split and preprocess input.
             tokens = QuoteProcessor.split_input(user_input)
         except ValueError as e:
             return InvalidCommand(str(e))
@@ -241,7 +243,7 @@ class CommandFactory:
             except (ValueError, IndexError):
                 return InvalidCommand("exit")
         elif command_name == "echo":
-            # Join the preprocessed tokens for the echo message
+            # Join the preprocessed tokens for the echo message.
             message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
             return EchoCommand(message)
         elif command_name == "pwd":
@@ -256,6 +258,7 @@ class CommandFactory:
                 return InvalidCommand("type")
         else:
             return ExternalCommand(command_name, tokens[1:])
+
 
 # The Shell class (REPL)
 class Shell:
@@ -282,14 +285,15 @@ class Shell:
         """The core REPL loop"""
         while self.running:
             try:
-                user_input = self.read()       # Read
-                command = self.eval(user_input)  # Evaluate
-                output = command.execute()       # Execute and get output
-                self.print(output)               # Print output
+                user_input = self.read()        # Read
+                command = self.eval(user_input)   # Evaluate
+                output = command.execute()        # Execute and get output
+                self.print(output)                # Print output
             except KeyboardInterrupt:
                 print("\nCtrl+C detected. Type 'exit' to quit.")
             except EOFError:
                 print("\nEOF detected. Type 'exit' to quit.")
+
 
 if __name__ == "__main__":
     shell = Shell()
