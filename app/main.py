@@ -140,12 +140,10 @@ class QuoteProcessor:
             i = 0
             while i < len(content):
                 if content[i] == "\\" and i + 1 < len(content):
-                    # Handle valid escape sequences
                     if content[i + 1] in ['"', "\\", "$", "\n"]:
                         processed.append(content[i + 1])
                         i += 2
                     else:
-                        # Backslash followed by other characters, treat as literal
                         processed.append(content[i + 1])
                         i += 2
                 else:
@@ -155,66 +153,60 @@ class QuoteProcessor:
         return text
 
     @staticmethod
-    def handle_unquoted_backslashes(token):
-        """Handles backslashes in unquoted text."""
-        processed = []
-        i = 0
-        while i < len(token):
-            if token[i] == "\\" and i + 1 < len(token):
-                # Remove the backslash and escape the following character
-                processed.append(token[i + 1])
-                i += 2
-            else:
-                processed.append(token[i])
-                i += 1
-        return "".join(processed)
-
-    @staticmethod
     def split_input(user_input):
         """Splits input into tokens and handles quotes and backslashes."""
         tokens = []
         current_token = []
         in_single_quote = False
         in_double_quote = False
-
         i = 0
         while i < len(user_input):
             char = user_input[i]
 
+            # Handle backslash escaping outside single quotes.
+            if char == "\\" and not in_single_quote:
+                if i + 1 < len(user_input):
+                    # Escape next character no matter if it's space or not.
+                    current_token.append(user_input[i + 1])
+                    i += 2
+                    continue
+                else:
+                    current_token.append(char)
+                    i += 1
+                    continue
+
             if char == "'" and not in_double_quote:
-                # Single quote toggle
-                if in_single_quote:
-                    in_single_quote = False  # Closing single quote
-                else:
-                    in_single_quote = True  # Opening single quote
-            elif char == '"' and not in_single_quote:
-                # Double quote toggle
-                if in_double_quote:
-                    in_double_quote = False  # Closing double quote
-                else:
-                    in_double_quote = True  # Opening double quote
-            elif char == " " and not in_single_quote and not in_double_quote:
-                # Space outside of quotes: finalize the current token
+                in_single_quote = not in_single_quote
+                current_token.append(char)
+                i += 1
+                continue
+
+            if char == '"' and not in_single_quote:
+                in_double_quote = not in_double_quote
+                current_token.append(char)
+                i += 1
+                continue
+
+            if char == " " and not in_single_quote and not in_double_quote:
                 if current_token:
                     tokens.append("".join(current_token))
                     current_token = []
-            else:
-                # Regular character or inside quotes
-                current_token.append(char)
+                i += 1
+                continue
 
+            current_token.append(char)
             i += 1
 
-        # Append the last token if there is one
         if current_token:
             tokens.append("".join(current_token))
 
-        # Handle unclosed quotes
+        # Error on unclosed quotes
         if in_single_quote:
             raise ValueError("Unclosed single quote in input")
         if in_double_quote:
             raise ValueError("Unclosed double quote in input")
 
-        # Handle quotes and backslashes in tokens
+        # Process tokens to handle quotes correctly
         processed_tokens = []
         for token in tokens:
             if token.startswith("'") and token.endswith("'"):
@@ -222,10 +214,9 @@ class QuoteProcessor:
             elif token.startswith('"') and token.endswith('"'):
                 processed_tokens.append(QuoteProcessor.handle_double_quotes(token))
             else:
-                processed_tokens.append(QuoteProcessor.handle_unquoted_backslashes(token))
-
+                # Already processed during splitting for unquoted backslashes.
+                processed_tokens.append(token)
         return processed_tokens
-
 
 # Command Factory to process user input and create commands
 class CommandFactory:
@@ -256,21 +247,17 @@ class CommandFactory:
         elif command_name == "pwd":
             return PwdCommand()
         elif command_name == "cd":
-            # Check if a target directory is provided
             target_directory = tokens[1] if len(tokens) > 1 else os.path.expanduser("~")
             return CdCommand(target_directory)
         elif command_name == "type":
-            # Check if a command name is provided to type
             if len(tokens) > 1:
                 return TypeCommand(tokens[1])
             else:
                 return InvalidCommand("type")
         else:
-            # Treat it as an external command with arguments
             return ExternalCommand(command_name, tokens[1:])
 
-
-# The Shell class
+# The Shell class (REPL)
 class Shell:
     """The REPL structure"""
     def __init__(self):
@@ -295,22 +282,14 @@ class Shell:
         """The core REPL loop"""
         while self.running:
             try:
-                # Read
-                user_input = self.read()
-
-                # Evaluate
-                command = self.eval(user_input)
-
-                # Execute and get output
-                output = command.execute()
-
-                # Print output
-                self.print(output)
+                user_input = self.read()       # Read
+                command = self.eval(user_input)  # Evaluate
+                output = command.execute()       # Execute and get output
+                self.print(output)               # Print output
             except KeyboardInterrupt:
                 print("\nCtrl+C detected. Type 'exit' to quit.")
             except EOFError:
                 print("\nEOF detected. Type 'exit' to quit.")
-
 
 if __name__ == "__main__":
     shell = Shell()
