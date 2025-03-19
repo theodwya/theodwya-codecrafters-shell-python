@@ -1,4 +1,9 @@
 import os
+import sys
+
+# Ensure that the directory of this file is in sys.path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from commands import (
     HelpCommand, ExitCommand, EchoCommand, PwdCommand, CdCommand,
     TypeCommand, InvalidCommand, ExternalCommand, RedirectCommand
