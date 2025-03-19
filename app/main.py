@@ -35,7 +35,7 @@ class EchoCommand(Command):
 class PwdCommand(Command):
     """Command to print the current working directory."""
     def execute(self):
-        return os.getcwd()  # Return the absolute path of the current working directory
+        return os.getcwd()
 
 
 class CdCommand(Command):
@@ -45,9 +45,7 @@ class CdCommand(Command):
 
     def execute(self):
         try:
-            # Expand `~` to the home directory
             target = os.path.expanduser(self.target_directory)
-            # Change the current working directory
             os.chdir(target)
         except FileNotFoundError:
             return f"cd: {self.target_directory}: No such file or directory"
@@ -63,19 +61,15 @@ class TypeCommand(Command):
         self.command_name = command_name
 
     def execute(self):
-        # Check if the command is a recognized builtin
         builtins = ["help", "exit", "echo", "type", "pwd", "cd"]
         if self.command_name in builtins:
             return f"{self.command_name} is a shell builtin"
-
-        # Use PATH environment variable to search for executable commands
         path_dirs = os.environ.get("PATH", "").split(os.pathsep)
         for path_dir in path_dirs:
             command_path = os.path.join(path_dir, self.command_name)
             if os.path.exists(command_path):
                 return f"{self.command_name} is {command_path}"
-        else:
-            return f"{self.command_name}: not found"
+        return f"{self.command_name}: not found"
 
 
 class InvalidCommand(Command):
@@ -92,140 +86,111 @@ class ExternalCommand(Command):
         self.arguments = arguments
 
     def execute(self):
-        # Use PATH to find the executable
         path_dirs = os.environ.get("PATH", "").split(os.pathsep)
         for directory in path_dirs:
             full_path = os.path.join(directory, self.command_name)
             if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
                 try:
-                    # Execute the external program with arguments
                     result = subprocess.run(
                         [self.command_name] + self.arguments,
-                        executable=full_path,  # Use the resolved full path to execute the program
+                        executable=full_path,
                         capture_output=True,
                         text=True
                     )
-                    # Print the program's standard output
                     print(result.stdout, end="")
-                    # Print the program's standard error (if any)
                     if result.stderr:
                         print(result.stderr, file=sys.stderr, end="")
                     return
                 except Exception as e:
                     return print(f"Error while executing {self.command_name}: {e}")
-
-        # Command not found in PATH
         return print(f"{self.command_name}: command not found")
 
 
 # Quote handling for single and double quotes with backslash support
 class QuoteProcessor:
-    """Processes quoted strings in input."""
+    """Processes quoted strings using a shell-like state machine."""
 
     @staticmethod
-    def handle_single_quotes(text):
-        """Handles text enclosed in single quotes (literal values)."""
-        if text.startswith("'") and text.endswith("'"):
-            return text[1:-1]  # Strip quotes
-        return text
-
-    @staticmethod
-    def handle_double_quotes(text):
-        """Handles text enclosed in double quotes (escape sequences allowed)."""
-        if text.startswith('"') and text.endswith('"'):
-            content = text[1:-1]  # Strip surrounding double quotes
-            # Process escape sequences specific to double quotes
-            processed = []
-            i = 0
-            while i < len(content):
-                if content[i] == "\\" and i + 1 < len(content):
-                    # Only escape if the next char is one of the following;
-                    # otherwise, the backslash remains literal.
-                    if content[i + 1] in ['"', "\\", "$", "\n"]:
-                        processed.append(content[i + 1])
-                        i += 2
-                    else:
-                        processed.append("\\" + content[i + 1])
-                        i += 2
-                else:
-                    processed.append(content[i])
-                    i += 1
-            return "".join(processed)
-        return text
-
-    @staticmethod
-    def split_input(user_input):
-        """Splits input into tokens and handles quotes and backslashes."""
-        tokens = []
-        current_token = []
-        in_single_quote = False
-        in_double_quote = False
+    def split_input(user_input: str):
+        """
+        Splits the user input into tokens, concatenating adjacent segments
+        (quoted or unquoted) into a single token.
+        """
+        words = []
+        current_word = ""
         i = 0
-        while i < len(user_input):
+        n = len(user_input)
+
+        while i < n:
+            # Skip whitespace as a delimiter if current_word is empty;
+            # if not empty, it means we've reached the end of a word.
+            if user_input[i].isspace():
+                # finish current word if we have one
+                while i < n and user_input[i].isspace():
+                    i += 1
+                if current_word != "":
+                    words.append(current_word)
+                    current_word = ""
+                continue
+
             char = user_input[i]
 
-            # If not inside any quotes, then backslash should escape the next character.
-            if char == "\\" and not in_single_quote and not in_double_quote:
-                if i + 1 < len(user_input):
-                    current_token.append(user_input[i + 1])
-                    i += 2
-                    continue
-                else:
-                    current_token.append(char)
+            # Handle single quotes: take content literally.
+            if char == "'":
+                i += 1
+                start = i
+                while i < n and user_input[i] != "'":
+                    current_word += user_input[i]
                     i += 1
-                    continue
-
-            if char == "'" and not in_double_quote:
-                in_single_quote = not in_single_quote
-                current_token.append(char)
-                i += 1
+                if i >= n:
+                    raise ValueError("Unclosed single quote in input")
+                i += 1  # Skip closing quote
                 continue
 
-            if char == '"' and not in_single_quote:
-                in_double_quote = not in_double_quote
-                current_token.append(char)
+            # Handle double quotes, processing escapes.
+            if char == '"':
                 i += 1
+                while i < n and user_input[i] != '"':
+                    if user_input[i] == "\\" and i + 1 < n:
+                        next_char = user_input[i + 1]
+                        if next_char in ['"', "\\", "$", "\n"]:
+                            current_word += next_char
+                            i += 2
+                        else:
+                            current_word += "\\" + next_char
+                            i += 2
+                    else:
+                        current_word += user_input[i]
+                        i += 1
+                if i >= n:
+                    raise ValueError("Unclosed double quote in input")
+                i += 1  # Skip closing quote
                 continue
 
-            # For spaces outside of any quotes, finalize the current token.
-            if char == " " and not in_single_quote and not in_double_quote:
-                if current_token:
-                    tokens.append("".join(current_token))
-                    current_token = []
-                i += 1
+            # Handle backslash outside quotes.
+            if char == "\\":
+                if i + 1 < n:
+                    current_word += user_input[i + 1]
+                    i += 2
+                else:
+                    current_word += "\\"
+                    i += 1
                 continue
 
-            # All other characters (or chars inside quotes) are appended as is.
-            current_token.append(char)
+            # Regular character: add to current word.
+            current_word += char
             i += 1
 
-        if current_token:
-            tokens.append("".join(current_token))
-
-        # Error on unclosed quotes.
-        if in_single_quote:
-            raise ValueError("Unclosed single quote in input")
-        if in_double_quote:
-            raise ValueError("Unclosed double quote in input")
-
-        # Process tokens to handle quotes correctly.
-        processed_tokens = []
-        for token in tokens:
-            if token.startswith("'") and token.endswith("'"):
-                processed_tokens.append(QuoteProcessor.handle_single_quotes(token))
-            elif token.startswith('"') and token.endswith('"'):
-                processed_tokens.append(QuoteProcessor.handle_double_quotes(token))
-            else:
-                processed_tokens.append(token)
-        return processed_tokens
+        if current_word != "":
+            words.append(current_word)
+        return words
 
 
-# Command Factory to process user input and create commands
+# Command Factory to process input and return commands.
 class CommandFactory:
     @staticmethod
     def get_command(user_input):
         try:
-            # Split and preprocess input.
             tokens = QuoteProcessor.split_input(user_input)
         except ValueError as e:
             return InvalidCommand(str(e))
@@ -243,7 +208,6 @@ class CommandFactory:
             except (ValueError, IndexError):
                 return InvalidCommand("exit")
         elif command_name == "echo":
-            # Join the preprocessed tokens for the echo message.
             message = " ".join(tokens[1:]) if len(tokens) > 1 else ""
             return EchoCommand(message)
         elif command_name == "pwd":
@@ -267,28 +231,24 @@ class Shell:
         self.running = True
 
     def read(self):
-        """Reads user input"""
         sys.stdout.write("$ ")
         sys.stdout.flush()
         return input().strip()
 
     def eval(self, user_input):
-        """Evaluates the user input by delegating to the CommandFactory."""
         return CommandFactory.get_command(user_input)
 
     def print(self, output):
-        """Prints the command's output"""
         if output:
             print(output)
 
     def loop(self):
-        """The core REPL loop"""
         while self.running:
             try:
-                user_input = self.read()        # Read
-                command = self.eval(user_input)   # Evaluate
-                output = command.execute()        # Execute and get output
-                self.print(output)                # Print output
+                user_input = self.read()
+                command = self.eval(user_input)
+                output = command.execute()
+                self.print(output)
             except KeyboardInterrupt:
                 print("\nCtrl+C detected. Type 'exit' to quit.")
             except EOFError:
