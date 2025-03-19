@@ -83,7 +83,7 @@ class ExternalCommand(Command):
                         capture_output=True,
                         text=True
                     )
-                    # Print standard error directly to stderr.
+                    # Write any error message directly to stderr.
                     if result.stderr:
                         print(result.stderr, file=sys.stderr, end="")
                     return result.stdout

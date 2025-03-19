@@ -17,11 +17,10 @@ class CommandFactory:
             tokens = QuoteProcessor.split_input(user_input)
         except ValueError as e:
             return InvalidCommand(str(e))
-
         if not tokens:
             return InvalidCommand("")
-
-        # Check for redirection operator ('>' or '1>')
+        
+        # Check for redirection operator: either ">" or "1>".
         redir_index = None
         for i, token in enumerate(tokens):
             if token in (">", "1>"):
@@ -29,18 +28,17 @@ class CommandFactory:
                 break
 
         if redir_index is not None:
-            # Must have a target file token after the operator.
             if redir_index == len(tokens) - 1:
                 return InvalidCommand("No file specified for redirection")
             redir_target = tokens[redir_index + 1]
-            # The command tokens are those before the redirection operator.
             command_tokens = tokens[:redir_index]
-            # Reassemble the command string and recursively call get_command.
-            command_str = " ".join(command_tokens)
-            base_command = CommandFactory.get_command(command_str)
+            base_command = CommandFactory._build_command(command_tokens)
             return RedirectCommand(base_command, redir_target)
+        else:
+            return CommandFactory._build_command(tokens)
 
-        # No redirection, process normally.
+    @staticmethod
+    def _build_command(tokens):
         command_name = tokens[0]
         if command_name == "help":
             return HelpCommand()
